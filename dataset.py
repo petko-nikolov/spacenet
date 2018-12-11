@@ -9,17 +9,17 @@ from geomet import wkt
 import re
 import pickle
 
-from torchvision.transforms import Normalize
-
 from pysemseg.datasets import SegmentationDataset
-from pysemseg import transforms
+from pysemseg.transforms import ToFloatImage, Compose
+
+from utils import TiffFileLoader
 
 
-class TiffFileLoader:
-    def __call__(self, image_path):
-        image = tifffile.imread(image_path)
-        if image.shape[0] < image.shape[1] and image.shape[0] < image.shape[2]:
-            image = image.transpose((1, 2, 0))
+NADIR_GROUPING = {
+    'Nadir': [0, 25],
+    'Off-nadir': [26, 40],
+    'Very Off-nadir': [41, 55]
+}
 
 
 def parse_polygon_files(summary_data_dir):
@@ -44,7 +44,7 @@ def _store_polygon_data(polygon_data, root_dir):
         pickle.dump(polygon_data, f)
 
 
-def parse_image_data(root_dir, cache):
+def parse_image_data(root_dir, cache, nadir):
     if cache:
         polygon_data = _maybe_load_polygon_data(root_dir)
     if not polygon_data:
@@ -54,6 +54,12 @@ def parse_image_data(root_dir, cache):
     images_data = []
     for filepath in glob.glob(root_dir + '/*/Pan-Sharpen/*.tif'):
         image_id = re.match('Pan-Sharpen_(.+)[.]tif', os.path.basename(filepath)).groups()[0]
+        nadir_angle = int(
+            re.match('.+[_]nadir([\d]{1,2}).+', image_id).groups()[0])
+        if nadir is not None:
+            low, high = NADIR_GROUPING[nadir]
+            if not (low <= nadir_angle <= high):
+                continue
         images_data.append({
             'image_id': image_id,
             'image_filepath': filepath,
@@ -83,25 +89,36 @@ def create_distance_transform(mask):
     return dt_mask
 
 
+def _shuffle_fixed_seed(items, seed):
+    state = np.random.get_state()
+    np.random.seed(seed)
+    np.random.shuffle(items)
+    np.random.set_state(state)
+
+
 class SpacenetOffNadirDataset(SegmentationDataset):
-    def __init__(self, data_dir, mode, val_ratio=0.05, cache=True):
+    def __init__(self, data_dir, mode, val_ratio=0.05, cache=True, nadir=None):
         super().__init__()
-        self.image_data = parse_image_data(data_dir, cache=cache)
-        np.random.shuffle(self.image_data)
+        self.image_data = parse_image_data(data_dir, cache=cache, nadir=nadir)
+        _shuffle_fixed_seed(self.image_data, 1021)
         val_start_index = int(val_ratio * len(self.image_data))
+        self.image_loader = Compose([
+            TiffFileLoader(),
+            ToFloatImage()
+        ])
         if mode == 'train':
             self.image_data = self.image_data[:-val_start_index]
         else:
             self.image_data = self.image_data[-val_start_index:]
 
+        with open("{}_data_ids".format(mode), "w") as f:
+            for image_data in self.image_data:
+                f.write(image_data['image_id'] + '\n')
 
     def __getitem__(self, index):
         image_data = self.image_data[index]
 
-        image = tifffile.imread(image_data['image_filepath'])
-        image = image / np.iinfo(np.uint16).max
-        if image.shape[0] == 4:
-            image = image.transpose((1, 2, 0))
+        image = self.image_loader(image_data['image_filepath'])
         mask = create_mask(image.shape[:2], image_data['polygons'])
 
         return image_data['image_id'], image, mask
@@ -116,25 +133,3 @@ class SpacenetOffNadirDataset(SegmentationDataset):
 
     def __len__(self):
         return len(self.image_data)
-
-
-class SpaceNetTransform:
-    def __init__(self, mode):
-        self.mode = mode
-        self.joint_augmentations = transforms.Compose([
-            transforms.RandomCropFixedSize((512, 512))
-        ])
-        self.tensor_transforms = transforms.Compose([
-            transforms.ToTensor(),
-            Normalize(
-                mean=[0.00931214, 0.01140157, 0.01378472, 0.02853437],
-                std=[0.00012771, 0.00014903, 0.00020968, 0.00038597]
-            )
-        ])
-
-    def __call__(self, image, target):
-        if self.mode == 'train':
-            image, target = self.joint_augmentations(image, target)
-        image = self.tensor_transforms(image)
-        target = transforms.ToCategoryTensor()(target)
-        return image, target
