@@ -10,9 +10,9 @@ import re
 import pickle
 
 from pysemseg.datasets import SegmentationDataset
-from pysemseg.transforms import ToFloatImage, Compose
+from pysemseg.transforms import Compose, Resize
 
-from utils import TiffFileLoader
+from utils import PanSharpenLoader, MSLoader, PANLoader
 
 
 NADIR_GROUPING = {
@@ -21,6 +21,12 @@ NADIR_GROUPING = {
     'Very Off-nadir': [41, 55]
 }
 
+
+LOADERS = {
+    'MS': MSLoader(),
+    'PAN': PANLoader(),
+    'Pan-Sharpen': PanSharpenLoader()
+}
 
 def parse_polygon_files(summary_data_dir):
     polygons = defaultdict(list)
@@ -44,7 +50,7 @@ def _store_polygon_data(polygon_data, root_dir):
         pickle.dump(polygon_data, f)
 
 
-def parse_image_data(root_dir, cache, nadir):
+def parse_image_data(root_dir, cache, nadir, image_types):
     if cache:
         polygon_data = _maybe_load_polygon_data(root_dir)
     if not polygon_data:
@@ -62,7 +68,11 @@ def parse_image_data(root_dir, cache, nadir):
                 continue
         images_data.append({
             'image_id': image_id,
-            'image_filepath': filepath,
+            'image_filepaths': {
+                image_type: filepath.replace('Pan-Sharpen', image_type)
+                for image_type in image_types
+            },
+            'angle': nadir_angle,
             'polygons': polygon_data[image_id]
         })
     return images_data
@@ -97,28 +107,34 @@ def _shuffle_fixed_seed(items, seed):
 
 
 class SpacenetOffNadirDataset(SegmentationDataset):
-    def __init__(self, data_dir, mode, val_ratio=0.05, cache=True, nadir=None):
+    def __init__(
+            self, data_dir, mode, val_ratio=0.1, cache=True, nadir=None,
+            image_types=['Pan-Sharped'], size=None):
         super().__init__()
-        self.image_data = parse_image_data(data_dir, cache=cache, nadir=nadir)
+        self.image_types = image_types
+        if len(image_types) > 1:
+            assert size is not None, "Specify size for the concatenated images"
+        self.size = size
+        self.image_data = parse_image_data(
+            data_dir, cache=cache, nadir=nadir,
+            image_types=self.image_types)
         _shuffle_fixed_seed(self.image_data, 1021)
         val_start_index = int(val_ratio * len(self.image_data))
-        self.image_loader = Compose([
-            TiffFileLoader(),
-            ToFloatImage()
-        ])
         if mode == 'train':
             self.image_data = self.image_data[:-val_start_index]
         else:
             self.image_data = self.image_data[-val_start_index:]
 
-        with open("{}_data_ids".format(mode), "w") as f:
-            for image_data in self.image_data:
-                f.write(image_data['image_id'] + '\n')
-
     def __getitem__(self, index):
         image_data = self.image_data[index]
 
-        image = self.image_loader(image_data['image_filepath'])
+        images = []
+        for image_type in self.image_types:
+            image = LOADERS[image_type](
+                image_data['image_filepaths'][image_type])
+            image = Resize(self.size)(image)
+            images.append(image)
+        image = np.concatenate(images, axis=2)
         mask = create_mask(image.shape[:2], image_data['polygons'])
 
         return image_data['image_id'], image, mask

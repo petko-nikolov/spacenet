@@ -1,6 +1,9 @@
 import tifffile
+import rasterio
 import numpy as np
 
+
+PAN_RGB_THRESHOLD = 3000
 
 def compute_mean_std(dataset):
     samples = []
@@ -22,4 +25,49 @@ class TiffFileLoader:
         image = tifffile.imread(image_path)
         if image.shape[0] < image.shape[1] and image.shape[0] < image.shape[2]:
             image = image.transpose((1, 2, 0))
+        return image
+
+
+class RasterIOLoader():
+    def __call__(self, image_path):
+        im_reader = rasterio.open(image_path)
+        img = np.empty((
+            im_reader.height,
+            im_reader.width,
+            im_reader.count
+        ))
+        for band in range(im_reader.count):
+            img[:, :, band] = im_reader.read(band+1)
+        return img
+
+
+class PanSharpenLoader:
+    def __init__(self):
+        self.rasterio_loader = RasterIOLoader()
+    def __call__(self, image_path):
+        image = self.rasterio_loader(image_path)
+        image[:, :, :3] = (
+            np.clip(image[:, :, :3], 0, PAN_RGB_THRESHOLD) / PAN_RGB_THRESHOLD
+        )
+        image[:, :, 3] /= np.iinfo(np.uint16).max
+        return image
+
+
+class PANLoader:
+    def __init__(self):
+        self.rasterio_loader = RasterIOLoader()
+
+    def __call__(self, image_path):
+        image = self.rasterio_loader(image_path)
+        image /= np.iinfo(np.uint16).max
+        return image
+
+
+class MSLoader:
+    def __init__(self):
+        self.rasterio_loader = RasterIOLoader()
+
+    def __call__(self, image_path):
+        image = self.rasterio_loader(image_path)
+        image /= np.iinfo(np.uint16).max
         return image

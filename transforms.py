@@ -1,3 +1,4 @@
+import cv2
 from torchvision.transforms import Normalize
 from pysemseg import transforms
 
@@ -5,28 +6,36 @@ class SpaceNetTransform:
     def __init__(self, mode):
         self.mode = mode
         self.image_augmentations = transforms.Compose([
-            transforms.RandomContrast(0.8, 1.2),
-            transforms.RandomBrightness(-0.001, 0.001)
+            transforms.RandomContrast(0.9, 1.1),
+            transforms.RandomBrightness(-0.02, 0.02)
         ])
         self.joint_augmentations = transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotate(),
-            transforms.RandomScale(),
-            # transforms.RandomCropFixedSize((512, 512))
-            transforms.RandomCropFixedSize((256, 256))
+            transforms.RandomHorizontalFlip(0.15),
+            transforms.RandomRotate(max_delta=3.),
+            transforms.RandomScale(scale_range=(0.9, 1.1)),
+            transforms.RandomCropFixedSize((512, 512))
         ])
         self.tensor_transforms = transforms.Compose([
             transforms.ToTensor(),
             Normalize(
-                mean=[0.01019215, 0.01236063, 0.01478618, 0.0291202],
-                std=[0.00015258, 0.00018149, 0.00024689, 0.00039786]
+                mean=[0.21074309, 0.25471676, 0.30088879, 0.02913642],
+                std=[0.04139718, 0.04751538, 0.06173738, 0.00039741]
             )
         ])
 
     def __call__(self, image, target):
         if self.mode == 'train':
-            image = self.image_augmentations(image)
+            image[:, :, :3] = self.image_augmentations(image[:, :, :3])
             image, target = self.joint_augmentations(image, target)
         image = self.tensor_transforms(image)
         target = transforms.ToCategoryTensor()(target)
         return image, target
+
+
+class Erode:
+    def __init__(self, kernel_size, iterations):
+        self.kernel_size = kernel_size
+        self.iterations = iterations
+
+    def __call__(self, mask):
+        return cv2.erode(mask, kernel=kernel_size, iterations=iterations)
