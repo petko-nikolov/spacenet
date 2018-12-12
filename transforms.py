@@ -43,7 +43,7 @@ class SpaceNetTransform:
         ])
         self.joint_augmentations = transforms.Compose([
             transforms.RandomHorizontalFlip(0.15),
-            transforms.RandomRotate(max_delta=3.),
+            # transforms.RandomRotate(max_delta=3.),
             transforms.RandomScale(scale_range=(0.9, 1.1)),
             transforms.RandomCropFixedSize((512, 512))
         ])

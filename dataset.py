@@ -22,6 +22,12 @@ NADIR_GROUPING = {
 }
 
 
+IN_CHANNELS = {
+    'MS': 8,
+    'PAN': 1,
+    'Pan-Sharpen': 4
+}
+
 LOADERS = {
     'MS': MSLoader(),
     'PAN': PANLoader(),
@@ -114,7 +120,7 @@ class SpacenetOffNadirDataset(SegmentationDataset):
         self.image_types = image_types
         if len(image_types) > 1:
             assert size is not None, "Specify size for the concatenated images"
-        self.size = size
+        self.size = tuple(size) if size else None
         self.image_data = parse_image_data(
             data_dir, cache=cache, nadir=nadir,
             image_types=self.image_types)
@@ -146,7 +152,7 @@ class SpacenetOffNadirDataset(SegmentationDataset):
 
     @property
     def in_channels(self):
-        return 4
+        return sum([IN_CHANNELS[it] for it in self.image_types])
 
     def __len__(self):
         return len(self.image_data)
