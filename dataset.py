@@ -109,7 +109,7 @@ def _shuffle_fixed_seed(items, seed):
 class SpacenetOffNadirDataset(SegmentationDataset):
     def __init__(
             self, data_dir, mode, val_ratio=0.1, cache=True, nadir=None,
-            image_types=['Pan-Sharped'], size=None):
+            image_types=['Pan-Sharpen'], size=None):
         super().__init__()
         self.image_types = image_types
         if len(image_types) > 1:
@@ -132,7 +132,8 @@ class SpacenetOffNadirDataset(SegmentationDataset):
         for image_type in self.image_types:
             image = LOADERS[image_type](
                 image_data['image_filepaths'][image_type])
-            image = Resize(self.size)(image)
+            if self.size is not None:
+                image = Resize(self.size)(image)
             images.append(image)
         image = np.concatenate(images, axis=2)
         mask = create_mask(image.shape[:2], image_data['polygons'])
