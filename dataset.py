@@ -1,6 +1,5 @@
 import os
 import glob
-import tifffile
 import numpy as np
 import csv
 import cv2

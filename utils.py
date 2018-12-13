@@ -1,4 +1,3 @@
-import tifffile
 import rasterio
 import numpy as np
 
@@ -18,14 +17,6 @@ def compute_mean_std(dataset):
     mean = x / count
     std = x2 / count - mean ** 2
     return mean, std
-
-
-class TiffFileLoader:
-    def __call__(self, image_path):
-        image = tifffile.imread(image_path)
-        if image.shape[0] < image.shape[1] and image.shape[0] < image.shape[2]:
-            image = image.transpose((1, 2, 0))
-        return image
 
 
 class RasterIOLoader():

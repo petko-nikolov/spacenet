@@ -1,4 +1,6 @@
 import itertools
+import scipy.ndimage
+import numpy as np
 import cv2
 from torchvision.transforms import Normalize
 from pysemseg import transforms
@@ -34,6 +36,18 @@ class Erode:
             mask, kernel=self.kernel_size, iterations=self.iterations)
 
 
+class RandomRotate:
+    def __init__(self,  max_delta=5):
+        self.max_delta = max_delta
+    def __call__(self, image, mask):
+        angle = np.random.uniform(-self.max_delta, self.max_delta)
+        image = scipy.ndimage.interpolation.rotate(
+            image, angle, mode='reflect')
+        mask = scipy.ndimage.interpolation.rotate(
+            mask, angle, mode='reflect')
+        return image, mask
+
+
 class SpaceNetTransform:
     def __init__(self, mode, image_types=['Pan-Sharpen']):
         self.mode = mode
@@ -43,7 +57,7 @@ class SpaceNetTransform:
         ])
         self.joint_augmentations = transforms.Compose([
             transforms.RandomHorizontalFlip(0.15),
-            # transforms.RandomRotate(max_delta=3.),
+            RandomRotate(max_delta=2.),
             transforms.RandomScale(scale_range=(0.9, 1.1)),
             transforms.RandomCropFixedSize((512, 512))
         ])
