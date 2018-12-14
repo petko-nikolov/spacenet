@@ -12,6 +12,7 @@ from pysemseg.datasets import SegmentationDataset
 from pysemseg.transforms import Compose, Resize
 
 from utils import PanSharpenLoader, MSLoader, PANLoader
+from transforms import Erode
 
 
 NADIR_GROUPING = {
@@ -83,7 +84,14 @@ def parse_image_data(root_dir, cache, nadir, image_types):
     return images_data
 
 
-def create_mask(shape, polygons):
+def _make_border(mask):
+    eroded = Erode(kernel_size=(3,3), iterations=3)(mask)
+    border = mask - eroded
+    mask = np.where(border, 2, mask)
+    return mask
+
+
+def create_mask(shape, polygons, make_border=False):
     mask = np.zeros(shape, dtype=np.uint8)
     for polygon in polygons:
         assert polygon['type'] == 'Polygon'
@@ -94,6 +102,8 @@ def create_mask(shape, polygons):
                 color = (0, 0, 0)
             mask = cv2.fillPoly(
                 mask, [np.array(poly).astype(np.int32)], color=color)
+    if make_border:
+        mask = _make_border(mask)
     return mask
 
 
@@ -114,8 +124,9 @@ def _shuffle_fixed_seed(items, seed):
 class SpacenetOffNadirDataset(SegmentationDataset):
     def __init__(
             self, data_dir, mode, val_ratio=0.1, cache=True, nadir=None,
-            image_types=['Pan-Sharpen'], size=None):
+            image_types=['Pan-Sharpen'], make_border=False, size=None):
         super().__init__()
+        self.make_border = make_border
         self.image_types = image_types
         if len(image_types) > 1:
             assert size is not None, "Specify size for the concatenated images"
@@ -141,13 +152,14 @@ class SpacenetOffNadirDataset(SegmentationDataset):
                 image = Resize(self.size)(image)
             images.append(image)
         image = np.concatenate(images, axis=2)
-        mask = create_mask(image.shape[:2], image_data['polygons'])
+        mask = create_mask(
+            image.shape[:2], image_data['polygons'], self.make_border)
 
         return image_data['image_id'], image, mask
 
     @property
     def number_of_classes(self):
-        return 2
+        return 2 + int(self.make_border)
 
     @property
     def in_channels(self):

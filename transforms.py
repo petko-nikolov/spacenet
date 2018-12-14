@@ -30,10 +30,11 @@ class Erode:
     def __init__(self, kernel_size, iterations):
         self.kernel_size = kernel_size
         self.iterations = iterations
+        self.kernel = np.ones(kernel_size, dtype=np.uint8)
 
     def __call__(self, mask):
         return cv2.erode(
-            mask, kernel=self.kernel_size, iterations=self.iterations)
+            mask, kernel=self.kernel, iterations=self.iterations)
 
 
 class RandomRotate:
@@ -57,13 +58,13 @@ class SpaceNetTransform:
         ])
         self.joint_augmentations = transforms.Compose([
             transforms.RandomHorizontalFlip(0.15),
-            RandomRotate(max_delta=2.),
+            # RandomRotate(max_delta=2.),
             transforms.RandomScale(scale_range=(0.9, 1.1)),
             transforms.RandomCropFixedSize((512, 512))
         ])
 
         self.target_augmentations = transforms.Compose([
-            Erode(kernel_size=(3,3), iterations=6)
+            # Erode(kernel_size=(3,3), iterations=3)
         ])
 
         self.image_types = image_types
