@@ -41,6 +41,7 @@ class PanSharpenLoader:
             np.clip(image[:, :, :3], 0, PAN_RGB_THRESHOLD) / PAN_RGB_THRESHOLD
         )
         image[:, :, 3] /= np.iinfo(np.uint16).max
+        image = np.clip(image, 0, 1)
         return image
 
 
