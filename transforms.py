@@ -88,7 +88,7 @@ class SpaceNetTransform:
         self.joint_augmentations = transforms.Compose([
             transforms.RandomHorizontalFlip(0.5),
             RandomRotate(max_delta=7.),
-            transforms.RandomScale(scale_range=(0.8, 1.2)),
+            transforms.RandomScale(),
             transforms.RandomCropFixedSize((512, 512))
         ])
 
