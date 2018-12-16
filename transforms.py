@@ -116,6 +116,8 @@ class SpaceNetTransform:
             image[:, :, :3] = self.image_augmentations(image[:, :, :3])
             target = self.target_augmentations(target)
             image, target = self.joint_augmentations(image, target)
+        else:
+            image = transforms.Resize((928, 928))(image)
         image = self.tensor_transforms(image)
         target = transforms.ToCategoryTensor()(target)
         return image, target
