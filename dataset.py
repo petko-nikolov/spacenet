@@ -68,10 +68,6 @@ def parse_image_data(root_dir, cache, nadir, image_types):
         image_id = re.match('Pan-Sharpen_(.+)[.]tif', os.path.basename(filepath)).groups()[0]
         nadir_angle = int(
             re.match('.+[_]nadir([\d]{1,2}).+', image_id).groups()[0])
-        if nadir is not None:
-            low, high = NADIR_GROUPING[nadir]
-            if not (low <= nadir_angle <= high):
-                continue
         images_data.append({
             'image_id': image_id,
             'image_filepaths': {
@@ -140,6 +136,12 @@ class SpacenetOffNadirDataset(SegmentationDataset):
             self.image_data = self.image_data[:-val_start_index]
         else:
             self.image_data = self.image_data[-val_start_index:]
+        if nadir is not None:
+            low, high = NADIR_GROUPING[nadir]
+            self.image_data = [
+                item for item in self.image_data
+                if low <=  item['angle'] <= high
+            ]
 
     def __getitem__(self, index):
         image_data = self.image_data[index]
