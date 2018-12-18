@@ -75,7 +75,62 @@ class RandomRotate:
 
 
 class SpaceNetTransform:
-    def __init__(self, mode, image_types=['Pan-Sharpen']):
+    def __init__(self, mode, image_types=['Pan-Sharpen'], normalize=True):
+        self.mode = mode
+        self.image_types = image_types
+        self.normalize = normalize
+
+        self.image_augmentations = transforms.Compose([
+            transforms.RandomHueSaturation(
+                hue_delta=0.05, saturation_scale_range=(0.9, 1.1)
+            ),
+            transforms.RandomContrast(0.8, 1.2),
+            transforms.RandomBrightness(-0.1, 0.1),
+            transforms.RandomGammaCorrection(min_gamma=0.9, max_gamma=1.1),
+            transforms.RandomGaussianBlur()
+        ])
+        self.joint_augmentations = transforms.Compose([
+            RandomRotate(max_delta=7.),
+            transforms.Choice([
+                transforms.RandomPerspective(),
+                transforms.RandomShear(),
+                transforms.RandomElasticTransform()
+            ]),
+            transforms.RandomHorizontalFlip(0.5),
+            transforms.RandomScale(),
+            transforms.RandomCropFixedSize((512, 512))
+        ])
+
+        self.mean = list(itertools.chain(
+            *[COLLECTION_MEANS[image_type] for image_type in image_types]
+        ))
+
+        self.std = list(itertools.chain(
+            *[COLLECTION_STDS[image_type] for image_type in image_types]
+        ))
+
+
+        tensor_transforms = [
+            transforms.ToTensor(),
+        ]
+        if self.normalize:
+            tensor_transforms.append(
+                Normalize(mean=self.mean, std=self.std)
+            )
+        self.tensor_transforms = transforms.Compose(tensor_transforms)
+
+    def __call__(self, image, target):
+        if self.mode == 'train':
+            image[:, :, :3] = self.image_augmentations(image[:, :, :3])
+            image, target = self.joint_augmentations(image, target)
+
+        image = self.tensor_transforms(image)
+        target = transforms.ToCategoryTensor()(target)
+        return image, target
+
+
+class ProposalTransform:
+    def __init__(self, mode):
         self.mode = mode
         self.image_augmentations = transforms.Compose([
             transforms.RandomHueSaturation(
@@ -89,22 +144,20 @@ class SpaceNetTransform:
             transforms.RandomHorizontalFlip(0.5),
             RandomRotate(max_delta=7.),
             transforms.RandomScale(),
-            transforms.RandomCropFixedSize((512, 512))
+            # transforms.RandomCropFixedSize((512, 512))
         ])
 
         self.target_augmentations = transforms.Compose([
             # Erode(kernel_size=(3,3), iterations=3)
         ])
 
-        self.image_types = image_types
-
         self.mean = list(itertools.chain(
-            *[COLLECTION_MEANS[image_type] for image_type in image_types]
-        ))
+            *[COLLECTION_MEANS[image_type] for image_type in ['Pan-Sharpen', 'PAN', 'MS']]
+        )) + [0.5, 32.0]
 
         self.std = list(itertools.chain(
-            *[COLLECTION_STDS[image_type] for image_type in image_types]
-        ))
+           *[COLLECTION_STDS[image_type] for image_type in ['Pan-Sharpen', 'PAN', 'MS']]
+        )) + [0.5, 20.0]
 
         self.tensor_transforms = transforms.Compose([
             transforms.ToTensor(),
@@ -116,8 +169,7 @@ class SpaceNetTransform:
             image[:, :, :3] = self.image_augmentations(image[:, :, :3])
             target = self.target_augmentations(target)
             image, target = self.joint_augmentations(image, target)
-        else:
-            image = transforms.Resize((928, 928))(image)
+
         image = self.tensor_transforms(image)
         target = transforms.ToCategoryTensor()(target)
         return image, target

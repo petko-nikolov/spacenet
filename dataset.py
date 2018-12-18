@@ -7,7 +7,6 @@ from collections import defaultdict
 from geomet import wkt
 import re
 import pickle
-
 from pysemseg.datasets import SegmentationDataset
 from pysemseg.transforms import Compose, Resize
 
@@ -166,6 +165,52 @@ class SpacenetOffNadirDataset(SegmentationDataset):
     @property
     def in_channels(self):
         return sum([IN_CHANNELS[it] for it in self.image_types])
+
+    def __len__(self):
+        return len(self.image_data)
+
+
+class ProposalDataset(SegmentationDataset):
+    def __init__(
+            self, data_dir, mode, val_ratio=0.1,
+            nadir=None):
+        super().__init__()
+        self.image_data = []
+        for filepath in glob.glob(os.path.join(data_dir, "*")):
+            image_id = os.path.basename(filepath)
+            nadir_angle = int(
+                re.match('.+[_]nadir([\d]{1,2}).+', image_id).groups()[0])
+            self.image_data.append({
+                'image_id': image_id,
+                'filepath': filepath,
+                'angle': nadir_angle
+            })
+
+        _shuffle_fixed_seed(self.image_data, 1021)
+        val_start_index = int(val_ratio * len(self.image_data))
+        if mode == 'train':
+            self.image_data = self.image_data[:-val_start_index]
+        else:
+            self.image_data = self.image_data[-val_start_index:]
+
+    def __getitem__(self, index):
+        image_data = self.image_data[index]
+        with open(image_data['filepath'], 'rb') as f:
+            image, segm, mask = pickle.load(f)
+        segm = np.expand_dims(segm, axis=-1)
+        angle = np.ones_like(segm) * image_data['angle']
+        image = np.concatenate(
+                (image, segm, angle), axis=2)
+        return image_data['image_id'], image, mask
+
+
+    @property
+    def number_of_classes(self):
+        return 2
+
+    @property
+    def in_channels(self):
+        return 15
 
     def __len__(self):
         return len(self.image_data)
