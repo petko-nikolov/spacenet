@@ -90,15 +90,15 @@ class SpaceNetTransform:
             transforms.RandomGaussianBlur()
         ])
         self.joint_augmentations = transforms.Compose([
+            transforms.RandomScale(),
+            transforms.RandomCropFixedSize((512, 512)),
             RandomRotate(max_delta=7.),
             transforms.Choice([
                 transforms.RandomPerspective(),
                 transforms.RandomShear(),
                 transforms.RandomElasticTransform()
-            ]),
+            ], p=[0.4, 0.4, 0.2]),
             transforms.RandomHorizontalFlip(0.5),
-            transforms.RandomScale(),
-            transforms.RandomCropFixedSize((512, 512))
         ])
 
         self.mean = list(itertools.chain(
