@@ -123,6 +123,9 @@ class SpaceNetTransform:
         if self.mode == 'train':
             image[:, :, :3] = self.image_augmentations(image[:, :, :3])
             image, target = self.joint_augmentations(image, target)
+        elif self.mode == 'val':
+            image = transforms.Resize((928, 928))(image)
+            target = transforms.Resize((928, 928), interpolation=cv2.INTER_NEAREST)(target)
 
         image = self.tensor_transforms(image)
         target = transforms.ToCategoryTensor()(target)
