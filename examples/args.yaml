@@ -1,0 +1,45 @@
+allow_missing_keys: false
+batch_size: 8
+checkpoint: null
+command: '/home/petko/.pyenv/versions/torchseg/bin/pysemseg-train --model unet_resnet101
+  --data-dir /mnt/hdd/datasets/spacenet/train/ --model-dir output/dlp_unethybrid_3
+  --dataset dataset.SpacenetOffNadirDataset --batch-size 8 --test-batch-size 1 --max-gpu-batch-size
+  4 --epochs 40 --num-workers 2 --lr 0.0001 --transformer transforms.SpaceNetTransform
+  --lr-scheduler StepLR --lr-scheduler-args {"step_size": 1, "gamma": 0.95} --optimizer
+  Adam --save-model-frequency 1 --criterion loss.Hybrid3ChanLoss --criterion-args
+  {"weights":[1.0, 1.2, 1.2], "focal_coef": 0.6, "ce_coef": 0.0} --dataset-args {''image_types'':
+  [''Pan-Sharpen'', ''PAN'', ''MS''], ''size'': [900, 900], ''make_border'': True}
+  --model-args {''pretrained'': False}'
+config: null
+continue_training: false
+criterion: loss.Hybrid3ChanLoss
+criterion_args:
+  ce_coef: 0.0
+  focal_coef: 0.6
+  weights: [1.0, 1.2, 1.2]
+data_dir: /mnt/hdd/datasets/spacenet/train/
+dataset: dataset.SpacenetOffNadirDataset
+dataset_args:
+  image_types: [Pan-Sharpen, PAN, MS]
+  make_border: true
+  size: [900, 900]
+epochs: 40
+log_images_interval: 200
+log_interval: 20
+lr: 0.0001
+lr_scheduler: StepLR
+lr_scheduler_args: {gamma: 0.95, step_size: 1}
+max_gpu_batch_size: 4
+model: unet_resnet101
+model_args: {pretrained: false}
+model_dir: output/dlp_unethybrid_3
+ngpu: 1
+no_cuda: false
+num_workers: 2
+optimizer: Adam
+optimizer_args: {}
+save_model_frequency: 1
+seed: 8861
+test_batch_size: 1
+transformer: transforms.SpaceNetTransform
+transformer_args: {}
